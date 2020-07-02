@@ -31,7 +31,7 @@ taylor centre e val n
     where
       var   = "x"
       dxs   = map (flip eval [(var, centre)]) (iterate (flip diff var) e)
-      xs    = iterate (*val) 1
+      xs    = iterate (*(val - centre)) 1
       facts = 1 : scanl1 (*) [1..]
       calcTerm dx x fact
         = (dx * x) / fact
