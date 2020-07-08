@@ -6,13 +6,16 @@ import Data.Maybe
 ---------------------------------------------------------------------------
 -- Type classes and class instances
 
-data UnOp = Neg | Sin | Cos | Log
+data UnOp = Neg | Sin | Cos | Tan | Log
           deriving (Eq, Ord)
 
-data BinOp = Add | Mul | Div
+data BinOp = Add | Mul | Div | Pow
            deriving (Eq, Ord)
 
-data Exp = Val Double | Id String | UnApp UnOp Exp | BinApp BinOp Exp Exp
+data Exp =  Val Double
+          | Id String
+          | UnApp UnOp Exp
+          | BinApp BinOp Exp Exp
          deriving (Eq, Ord)
 
 type Env = [(String, Double)]
@@ -37,38 +40,51 @@ instance Num Exp where
   (*) 1 e   = e
   (*) e e'  = BinApp Mul e e'
   -- Functions below unimplemented
-  signum  = undefined
-  abs     = undefined
+  signum  = error "No signum for symbolic numbers"
+  abs     = error "No abs for symbolic numbers"
 
 instance Fractional Exp where
   fromRational  = Val . realToFrac
   -- Optimizations for (/)
   (/) 0 _   = 0
+  (/) _ 0   = error "Division by zero!"
   (/) e 1   = e
   (/) e e'  = BinApp Div e e'
-  -- Functions below unimplemented
-  recip = undefined
+  -- Optimizations for recip
+  recip (BinApp Div e e') = (/) e' e
+  recip e                 = (/) 1 e
 
 instance Floating Exp where
-  sin     = UnApp Sin
-  cos     = UnApp Cos
-  log     = UnApp Log
+  pi  = Id "pi"
+  sin = UnApp Sin
+  cos = UnApp Cos
+  tan = UnApp Tan
+  exp = (**) (Id "e")
+  -- Optimizations for (**)
+  (**) 0 0  = error "0 ** 0 undefined!"
+  (**) 0 _  = 0
+  (**) _ 0  = 1
+  (**) 1 _  = 1
+  (**) e 1  = e
+  (**) e p  = BinApp Pow e p
+  -- Optimizations for log
+  log (Id "e")                      = 1
+  log (BinApp Mul (Id "e") (Val n)) = Val n
+  log (BinApp Mul (Val n) (Id "e")) = Val n
+  log e                             = UnApp Log e
+  -- Optimizations for logBase
+  logBase b v = (/) (log v) (log b)
   -- Functions below unimplemented
-  tan     = undefined
-  asin    = undefined
-  acos    = undefined
-  atan    = undefined
-  pi      = undefined
-  exp     = undefined
-  sqrt    = undefined
-  (**)    = undefined
-  logBase = undefined
-  sinh    = undefined
-  cosh    = undefined
-  tanh    = undefined
-  asinh   = undefined
-  acosh   = undefined
-  atanh   = undefined
+  sqrt    = error "sqrt not yet implemented"
+  asin    = error "Inverse trigonometric function not yet implemented"
+  acos    = error "Inverse trigonometric function not yet implemented"
+  atan    = error "Inverse trigonometric function not yet implemented"
+  sinh    = error "Hyperbolic function not yet implemented"
+  cosh    = error "Hyperbolic function not yet implemented"
+  tanh    = error "Hyperbolic function not yet implemented"
+  asinh   = error "Hyperbolic function not yet implemented"
+  acosh   = error "Hyperbolic function not yet implemented"
+  atanh   = error "Hyperbolic function not yet implemented"
 
 ---------------------------------------------------------------------------
 -- Displaying Expressions
@@ -77,16 +93,19 @@ instance Show UnOp where
   show Neg  = "-"
   show Sin  = "sin"
   show Cos  = "cos"
+  show Tan  = "tan"
   show Log  = "log"
 
 instance Show BinOp where
   show Add  = "+"
   show Mul  = "*"
   show Div  = "/"
+  show Pow  = "**"
 
 instance Show Exp where
-  show (Val e)  = show e
-  show (Id e)   = e
+  show (Val e)    = show e
+  show (Id "pi")  = "π"
+  show (Id e)     = e
   -- Special cases for Unary Operators
   show (UnApp Neg e)
     = show Neg ++ show e
@@ -114,6 +133,7 @@ unOpFunc op
       table = [ (Neg, negate)
               , (Sin, sin)
               , (Cos, cos)
+              , (Tan, tan)
               , (Log, log)
               ]
 
@@ -124,11 +144,16 @@ binOpFunc op
       table = [ (Add, (+))
               , (Mul, (*))
               , (Div, (/))
+              , (Pow, (**))
               ]
 
 eval :: Exp -> Env -> Double
 eval (Val v) _
   = v
+eval (Id "e") _
+  = exp 1
+eval (Id "pi") _
+  = pi
 eval (Id x) env
   = lookUp x env
 eval (UnApp op e) env

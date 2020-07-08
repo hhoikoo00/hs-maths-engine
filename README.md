@@ -1,4 +1,4 @@
-# hs_maths_engine
+# hs-maths-engine
 
 A Haskell library that defines custom mathematical expressions and performs calculus and linear algebra calculations.
 
